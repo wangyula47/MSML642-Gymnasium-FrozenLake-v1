@@ -15,7 +15,7 @@ gym.envs.registration.register(
 )
 
 
-def adjust_epsilon_decay(episode_rewards, current_decay, threshold=0.1, adjustment_factor=0.85):
+def adjust_epsilon_decay(episode_rewards, current_decay, threshold=0.1, adjustment_factor=0.999):
     """
     Adjusts the epsilon decay rate based on the recent performance of the agent.
 
@@ -34,9 +34,11 @@ def adjust_epsilon_decay(episode_rewards, current_decay, threshold=0.1, adjustme
 
 
 # Function to run episodes (training or testing)
-def run_episodes(env, q_table, episodes, learning_rate, discount_factor, epsilon, epsilon_decay, is_training, render=False):
+def run_episodes(env, q_table, episodes, learning_rate, discount_factor, epsilon, epsilon_decay, is_training, render=False,
+                 track_outcomes=False):
     episode_rewards = np.zeros(episodes)
     current_epsilon_decay = epsilon_decay
+    outcomes = {"goal": 0, "hole": 0}
 
     for episode in range(episodes):
         state = env.reset()
@@ -76,19 +78,25 @@ def run_episodes(env, q_table, episodes, learning_rate, discount_factor, epsilon
         epsilon = max(epsilon * current_epsilon_decay, 0.01)
         print(f"Episode {episode + 1}: Total Reward: {total_reward}")
 
+        if track_outcomes:
+            if reward > 0:  # Agent reached the goal
+                outcomes["goal"] += 1
+            elif reward < 0:  # Agent fell into a hole
+                outcomes["hole"] += 1
+
         if is_training:
             with open("frozen_lake_enhanced.pkl", "wb") as f:
                 pickle.dump(q_table, f)
 
-    return episode_rewards
+    return (episode_rewards, outcomes) if track_outcomes else episode_rewards
 
 
 if __name__ == '__main__':
     # Environment and learning parameters
     size = 8
-    hole_probability = 0.2
-    episodes = 2000
-    test_episodes = 10
+    hole_probability = 0.12
+    episodes = 10000
+    test_episodes = 100
     learning_rate = 0.9
     discount_factor = 0.9
     epsilon = 1.0
@@ -102,7 +110,7 @@ if __name__ == '__main__':
     training_rewards = run_episodes(env, q_table, episodes, learning_rate, discount_factor, epsilon, initial_epsilon_decay,
                                     is_training=True, render=False)
     test_rewards = run_episodes(env, q_table, test_episodes, learning_rate, discount_factor, epsilon, initial_epsilon_decay,
-                                is_training=True, render=True)
+                                is_training=True, render=True, track_outcomes=True)
 
     # Plot and save cumulative rewards
     cumulative_rewards = np.cumsum(training_rewards)
